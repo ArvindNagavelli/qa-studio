@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1" # weekly: catch newly published advisories in pinned dependencies
+
+# Least privilege: CI only needs to read the code. No secrets are used.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  NEXT_TELEMETRY_DISABLED: "1"
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
+jobs:
+  backend-lint:
+    name: backend · ruff
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.lock
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements-dev.lock
+      - run: ruff check .
+      - run: ruff format --check .
+
+  backend-typecheck:
+    name: backend · mypy
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.lock
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements-dev.lock
+      - run: mypy
+
+  backend-test:
+    name: backend · pytest (${{ matrix.os }}, py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Oldest, primary and newest supported Python on Linux, plus Windows.
+        os: [ubuntu-24.04]
+        python-version: ["3.10", "3.12", "3.14"]
+        include:
+          - os: windows-latest
+            python-version: "3.12"
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.lock
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements-dev.lock
+      # Embedded PostgreSQL (pixeltable-pgserver): no Docker service container needed.
+      - run: pytest --cov --cov-report=term-missing
+
+  frontend:
+    name: frontend · lint + typecheck + build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+
+  dependency-audit:
+    name: dependencies · known vulnerabilities
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: frontend/.nvmrc
+      - name: pip-audit (every pin in the backend lockfile, all platforms)
+        run: |
+          python -m pip install --upgrade pip pip-audit
+          sed -nE 's/^([A-Za-z0-9._-]+==[^ ;]+).*/\1/p' backend/requirements-dev.lock | sort -u > pins.txt
+          pip-audit --requirement pins.txt --no-deps --disable-pip --progress-spinner off
+      - name: npm audit (frontend lockfile)
+        working-directory: frontend
+        run: npm audit --audit-level=low

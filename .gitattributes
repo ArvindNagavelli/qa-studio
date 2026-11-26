@@ -1,0 +1,25 @@
+# Normalise line endings so the repo behaves identically on Windows, macOS and the
+# Ubuntu task machine. Shell scripts MUST be LF or bash fails with "$'\r': command not found".
+* text=auto eol=lf
+
+*.sh    text eol=lf
+*.py    text eol=lf
+*.lock  text eol=lf
+*.ps1   text eol=crlf
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+# Binary files: never diff or convert
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.webp  binary
+*.woff  binary
+*.woff2 binary
+*.pdf   binary
+
+# Generated lockfiles: collapse in GitHub diffs
+package-lock.json         linguist-generated=true -diff
+backend/requirements*.lock linguist-generated=true

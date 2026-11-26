@@ -1,0 +1,46 @@
+# Install once:  pre-commit install   (from the backend venv, which provides pre-commit)
+# Run manually:  pre-commit run --all-files
+# Hook revs match the versions pinned in backend/requirements-dev.lock.
+default_install_hook_types: [pre-commit]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-yaml
+      - id: check-toml
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: [--baseline, .secrets.baseline]
+        exclude: package-lock\.json$
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.6
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+        files: ^backend/
+      - id: ruff-format
+        files: ^backend/
+
+  # Belt and braces: refuse local-only files even if someone uses `git add -f`.
+  - repo: local
+    hooks:
+      - id: forbid-local-only-files
+        name: forbid local-only files (CLAUDE.md, AGENTS.md, .claude/, docs/, .env)
+        language: fail
+        entry: "These files are local-only and must not be committed:"
+        files: (^|/)(CLAUDE(\.local)?\.md|AGENTS\.md|\.env|\.env\.(?!example$)[^/]*)$|(^|/)(\.claude|docs)/

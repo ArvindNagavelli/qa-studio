@@ -1,0 +1,68 @@
+# =====================================================================
+# QA Studio: this repository is PUBLIC. When in doubt, ignore it.
+# =====================================================================
+
+# --- Secrets ---------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+client_secret*.json
+service-account*.json
+secrets/
+
+# --- Agent and planning files (local only) ---------------------------
+CLAUDE.md
+**/CLAUDE.md
+CLAUDE.local.md
+**/CLAUDE.local.md
+AGENTS.md
+**/AGENTS.md
+.claude/
+docs/
+
+# --- Environments and dependencies -----------------------------------
+.venv/
+venv/
+node_modules/
+
+# --- Caches ----------------------------------------------------------
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.eslintcache
+
+# --- Build output ----------------------------------------------------
+.next/
+out/
+dist/
+build/
+*.egg-info/
+*.tsbuildinfo
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
+
+# --- Local data, OS and editor files ---------------------------------
+*.log
+*.sqlite
+*.sqlite3
+*.db
+pgdata/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.zip

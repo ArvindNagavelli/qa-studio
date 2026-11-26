@@ -1,0 +1,4 @@
+Async Alembic environment. The database URL is read from DATABASE_URL via app settings.
+
+    alembic revision --autogenerate -m "describe change"
+    alembic upgrade head
