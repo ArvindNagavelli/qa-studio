@@ -6,11 +6,19 @@ pip wheel, started in a temp directory. No Docker and no system packages needed.
 
 from __future__ import annotations
 
+import shutil
+import tempfile
+import time
+import uuid
+import warnings
 from collections.abc import AsyncIterator, Iterator
+from pathlib import Path
 
 import httpx
 import pytest
 from pixeltable_pgserver.postgres_server import get_server
+
+PG_DIR_PREFIX = "qa-studio-pg-"
 
 # Test-only, non-secret values. Applied per fixture, never written to disk.
 TEST_ENV = {
@@ -21,14 +29,40 @@ TEST_ENV = {
 }
 
 
+def _remove_dir(path: Path, attempts: int = 10, delay: float = 0.5) -> None:
+    """Delete ``path``, retrying briefly: on Windows a just-stopped PostgreSQL can keep
+    file handles open for a moment. Warn (never silently leak) if it still fails."""
+    for _ in range(attempts):
+        shutil.rmtree(path, ignore_errors=True)
+        if not path.exists():
+            return
+        time.sleep(delay)
+    warnings.warn(f"could not delete temporary database folder {path}", stacklevel=2)
+
+
 @pytest.fixture(scope="session")
-def postgres_url(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
-    """Start a throwaway embedded PostgreSQL for the test session."""
-    server = get_server(tmp_path_factory.mktemp("pgdata"), cleanup_mode="delete")
+def postgres_url() -> Iterator[str]:
+    """Start a throwaway embedded PostgreSQL for the test session.
+
+    The data lives in a fresh folder in the system temp directory, NOT in pytest's
+    ``tmp_path``: on Windows with Python 3.12.4+, pytest's temp folders get an owner-only
+    ACL, and when tests run as Administrator (as on GitHub's Windows runners) PostgreSQL
+    drops its admin rights before ``initdb`` and can no longer open such a folder. A folder
+    created with default permissions inherits the temp directory's ACL and works.
+
+    The folder is always removed at the end of the session, also when PostgreSQL fails
+    to start or a test fails.
+    """
+    base = Path(tempfile.gettempdir()) / f"{PG_DIR_PREFIX}{uuid.uuid4().hex[:12]}"
+    base.mkdir()  # default mode on purpose: see docstring (tempfile.mkdtemp uses 0o700)
     try:
-        yield server.get_uri(driver="asyncpg")
+        server = get_server(base / "pgdata", cleanup_mode="delete")
+        try:
+            yield server.get_uri(driver="asyncpg")
+        finally:
+            server.cleanup()
     finally:
-        server.cleanup()
+        _remove_dir(base)
 
 
 async def _make_client(database_url: str) -> AsyncIterator[httpx.AsyncClient]:
