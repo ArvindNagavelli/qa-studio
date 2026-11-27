@@ -23,3 +23,6 @@
 # Generated lockfiles: collapse in GitHub diffs
 package-lock.json         linguist-generated=true -diff
 backend/requirements*.lock linguist-generated=true
+
+# Leave CI config out of the upload zip (scripts/make_upload.sh uses git archive)
+.github export-ignore
